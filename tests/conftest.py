@@ -119,3 +119,6 @@ def call_tool_json(tool_cls, params: dict) -> str:
     """Same as call_tool but passes params as a JSON string."""
     instance = tool_cls()
     return instance.call(json.dumps(params))
+
+
+    

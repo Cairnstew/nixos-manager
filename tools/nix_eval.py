@@ -31,7 +31,15 @@ class NixEval(BaseTool):
 
     def call(self, params: Union[str, dict], **kwargs) -> str:
         if isinstance(params, str):
-            params = json.loads(params) if params.strip() else {}
+            stripped = params.strip()
+            if not stripped:
+                params = {}
+            else:
+                try:
+                    params = json.loads(stripped)
+                except json.JSONDecodeError:
+                    # Caller passed a raw Nix expression string, not a JSON object
+                    params = {"code": stripped}
 
         code = params.get("code", "")
         is_flake = params.get("is_flake", False)
@@ -46,19 +54,20 @@ class NixEval(BaseTool):
 
         try:
             if is_flake:
-                # Flakes require a directory, so we check syntax only for snippet safety
                 cmd = ["nix-instantiate", "--parse", tmp_path]
             else:
-                # Standard expression check
                 cmd = ["nix-instantiate", "--eval", tmp_path]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-            
+
             if result.returncode == 0:
                 return "SUCCESS: Code is syntactically valid."
             else:
                 return f"SYNTAX ERROR: {result.stderr}"
-        
+
+        except subprocess.TimeoutExpired:
+            return "ERROR: Evaluation timed out after 5 seconds."
+
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)

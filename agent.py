@@ -26,10 +26,6 @@ def setup_logging(verbose_terminal: bool = False) -> None:
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
 
-    # Remove any handlers that were auto-created before we got here
-    # (qwen_agent imports can trigger basicConfig-style handler creation)
-    root.handlers.clear()
-
     fmt = logging.Formatter(
         "%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s"
     )
@@ -45,6 +41,13 @@ def setup_logging(verbose_terminal: bool = False) -> None:
     sh.setLevel(logging.DEBUG if verbose_terminal else logging.WARNING)
     sh.setFormatter(fmt)
     root.addHandler(sh)
+
+    # Suppress noisy qwen-agent INFO lines on stderr without clearing
+    # handlers wholesale (clearing breaks qwen-agent's internal streaming)
+    if not verbose_terminal:
+        for name in ("qwen_agent", "qwen_agent.llm", "qwen_agent.llm.base"):
+            lg = logging.getLogger(name)
+            lg.setLevel(logging.WARNING)
 
 
 verbose_log = "--log" in sys.argv
@@ -156,15 +159,19 @@ def run_cli(agent: Assistant, debug: bool = False) -> None:
         log.info("User: %s", user_input)
 
         response_msgs: list[dict] = []
+        best_text = ""
         chunk_count = 0
         SPINNER = r"⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
         try:
             for chunk in agent.run(messages=messages):
+                if not chunk:
+                    continue
                 response_msgs = chunk
+                candidate = _extract_last_text(chunk) or ""
+                if len(candidate) > len(best_text):
+                    best_text = candidate
                 if debug:
-                    # Spinner shows the agent is alive without printing
-                    # the raw (non-delta) accumulated text each chunk
                     spin_char = SPINNER[chunk_count % len(SPINNER)]
                     print(f"\r  {spin_char} thinking…", end="", flush=True)
                     chunk_count += 1
@@ -180,13 +187,12 @@ def run_cli(agent: Assistant, debug: bool = False) -> None:
             print("\r" + " " * 20 + "\r", end="")  # clear spinner line
 
         # Always print the final response once, cleanly
-        final = _extract_last_text(response_msgs)
-        if final:
-            print(f"\nNixMgr> {final}\n")
+        if best_text:
+            print(f"\nNixMgr> {best_text}\n")
         else:
             print("\n[no response]\n")
 
-        log.info("Assistant: %s", _extract_last_text(response_msgs))
+        log.info("Assistant: %s", best_text)
         messages = response_msgs
 
 

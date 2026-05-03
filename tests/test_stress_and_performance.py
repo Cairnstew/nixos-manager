@@ -80,8 +80,8 @@ class TestStressOperations:
         monkeypatch.setattr("tools.repo_writer.NIXOS_REPO_PATH", repo)
         monkeypatch.setattr("tools.repo_reader.NIXOS_REPO_PATH", repo)
         
-        # Create 20 files in deep paths
-        for depth in range(20):
+        # Create 20 files in deep paths (start at depth 1 to avoid empty prefix)
+        for depth in range(1, 21):
             path = "/".join(["level"] * depth) + "/file.nix"
             result = call_tool(WriteNixFile, {
                 "path": path,

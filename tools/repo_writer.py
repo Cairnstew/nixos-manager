@@ -91,7 +91,7 @@ class WriteNixFile(BaseTool):
 
         # Backup existing file
         if target.exists():
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             bak = target.with_suffix(f".nix.bak_{stamp}")
             shutil.copy2(target, bak)
 
@@ -170,7 +170,7 @@ class PatchNixFile(BaseTool):
         if dry_run:
             return f"DRY RUN — would replace 1 occurrence in {rel}."
 
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         bak = target.with_suffix(f".nix.bak_{stamp}")
         shutil.copy2(target, bak)
 

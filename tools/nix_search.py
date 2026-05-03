@@ -35,7 +35,7 @@ class NixSearch(BaseTool):
         query = params.get("query", "")
         search_options = params.get("search_options", False)
 
-        if not query:
+        if not query or not query.strip():
             return "ERROR: Search query is required."
 
         try:

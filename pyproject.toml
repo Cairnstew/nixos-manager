@@ -36,8 +36,11 @@ packages = ["tools", "config"]
 allow-direct-references = true
 
 [tool.pytest.ini_options]
-addopts = ["-v", "--tb=short", "--strict-markers", "-p", "no:warnings"]
-markers = ["integration: requires real binaries (git, nix) installed", "slow: takes more than a few seconds"]
+addopts = ["-v", "--tb=short", "--strict-markers", "-p", "no:warnings", "--capture=no"]
+markers = [
+    "integration: requires real binaries and a running Ollama instance",
+    "slow: takes more than a few seconds",
+]
 python_classes = ["Test*"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
