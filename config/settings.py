@@ -11,11 +11,15 @@ from pathlib import Path
 # qwen-agent can speak to any OpenAI-compatible server (Ollama, vLLM, LMStudio…)
 # ---------------------------------------------------------------------------
 LLM_CONFIG = {
-    "model": os.getenv("NIXMGR_MODEL", "qwen2.5-coder:8b"),   # or "qwen3:8b"
-    "model_server": os.getenv("NIXMGR_SERVER", "http://localhost:11434/v1"),  # Ollama default
-    "api_key": os.getenv("NIXMGR_API_KEY", "ollama"),           # placeholder for local
-    # Uncomment to cap token spend:
-    # "generate_cfg": {"max_tokens": 4096},
+    "model_type": "oai",
+    "model": os.getenv("NIXMGR_MODEL", "qwen3:8b"),
+    "model_server": os.getenv("NIXMGR_SERVER", "http://localhost:11434/v1"),
+    "api_key": os.getenv("NIXMGR_API_KEY", "ollama"),
+    "generate_cfg": {
+        "fncall_prompt_type": "nous",   # ← 'qwen' or 'nous' — NOT 'qwen25'
+        "max_tokens": 4096,
+        "thought_in_content": False,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -23,7 +27,7 @@ LLM_CONFIG = {
 # ---------------------------------------------------------------------------
 NIXOS_REPO_PATH = Path(
     os.getenv("NIXOS_REPO_PATH", str(Path.home() / "nixos-config"))
-)
+).expanduser()
 
 # File extensions treated as Nix source
 NIX_EXTENSIONS = {".nix"}

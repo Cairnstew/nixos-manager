@@ -14,11 +14,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ---------------------------------------------------------------------------
 # Smart Stubbing: Only stub qwen_agent if it's NOT installed.
 # This allows live tests to use the real library while unit tests stay light.
+# Catches both ImportError and OSError (for missing system libraries like libsndfile.so)
 # ---------------------------------------------------------------------------
 try:
     import qwen_agent
     HAS_QWEN = True
-except ImportError:
+except (ImportError, OSError, FileNotFoundError):
     HAS_QWEN = False
     
     class _FakeBaseTool:
@@ -34,15 +35,24 @@ except ImportError:
             return cls
         return decorator
 
+    class ModelServiceError(Exception):
+        """Fake ModelServiceError exception for qwen_agent."""
+        pass
+
     # Patch the modules so the project can at least import them
     qwen_mock = MagicMock()
     qwen_mock.tools.base.BaseTool = _FakeBaseTool
     qwen_mock.tools.base.register_tool = _fake_register_tool
+    
+    llm_base_mock = MagicMock()
+    llm_base_mock.ModelServiceError = ModelServiceError
+    
     sys.modules.setdefault("qwen_agent", qwen_mock)
     sys.modules.setdefault("qwen_agent.tools", qwen_mock.tools)
     sys.modules.setdefault("qwen_agent.tools.base", qwen_mock.tools.base)
     sys.modules.setdefault("qwen_agent.agents", MagicMock())
     sys.modules.setdefault("qwen_agent.llm", MagicMock())
+    sys.modules.setdefault("qwen_agent.llm.base", llm_base_mock)
     sys.modules.setdefault("qwen_agent.gui", MagicMock())
 
 

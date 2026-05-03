@@ -1,19 +1,70 @@
 """
 agent.py  –  NixOS Config Manager
-Entry point. Run with:  python agent.py
+Entry point. Run with:  uv run agent.py
+
+Flags:
+  --debug   Show live token stream in terminal while generating
+  --log     Also print log output to terminal (default: log file only)
+  --gui     Launch Gradio web UI instead of CLI
 """
 
+import logging
 import sys
+from pathlib import Path
 
-# Import tools so their @register_tool decorators fire
-import tools.repo_reader   # noqa: F401
+# ---------------------------------------------------------------------------
+# Logging setup — must happen BEFORE importing qwen_agent so we capture
+# its loggers from the start.
+# ---------------------------------------------------------------------------
+LOG_FILE = Path(__file__).parent / "nixmgr.log"
+
+def setup_logging(verbose_terminal: bool = False) -> None:
+    """
+    Always write full DEBUG logs to nixmgr.log.
+    Only show WARNING+ on the terminal unless --log is passed.
+    """
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # Remove any handlers that were auto-created before we got here
+    # (qwen_agent imports can trigger basicConfig-style handler creation)
+    root.handlers.clear()
+
+    fmt = logging.Formatter(
+        "%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s"
+    )
+
+    # File handler — everything goes here
+    fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+
+    # Terminal handler — quiet by default, verbose with --log
+    sh = logging.StreamHandler(sys.stderr)
+    sh.setLevel(logging.DEBUG if verbose_terminal else logging.WARNING)
+    sh.setFormatter(fmt)
+    root.addHandler(sh)
+
+
+verbose_log = "--log" in sys.argv
+setup_logging(verbose_terminal=verbose_log)
+
+# ---------------------------------------------------------------------------
+# Now safe to import qwen_agent (its loggers inherit root config above)
+# ---------------------------------------------------------------------------
+import tools.repo_reader   # noqa: F401  — register_tool decorators
 import tools.repo_writer   # noqa: F401
 import tools.nix_ops       # noqa: F401
+import tools.nix_eval      # noqa: F401
+import tools.nix_search    # noqa: F401
 
 from qwen_agent.agents import Assistant
 from qwen_agent.gui import WebUI
 
 from config.settings import LLM_CONFIG, NIXOS_REPO_PATH
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -28,6 +79,8 @@ Your capabilities:
 - Run safe git operations: status, diff, log, add, commit (git_op)
 - Validate the flake with nix flake check / nix build (nix_check)
 - Search across all .nix files (search_nix_files)
+- Evaluate Nix expressions directly (nix_eval)
+- Search the Nix package index and options (nix_search)
 
 Guidelines:
 1. Always read relevant files before suggesting or making changes.
@@ -39,7 +92,7 @@ Guidelines:
 """
 
 # ---------------------------------------------------------------------------
-# Tool list passed to the agent
+# Tool list
 # ---------------------------------------------------------------------------
 TOOLS = [
     "list_nix_files",
@@ -49,6 +102,8 @@ TOOLS = [
     "git_op",
     "nix_check",
     "search_nix_files",
+    "nix_eval",
+    "nix_search",
 ]
 
 
@@ -62,10 +117,27 @@ def build_agent() -> Assistant:
     )
 
 
-def run_cli(agent: Assistant) -> None:
+def _extract_last_text(msgs: list[dict]) -> str | None:
+    """Pull the text content out of the last assistant message."""
+    for msg in reversed(msgs):
+        if msg.get("role") == "assistant":
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                parts = [
+                    b["text"] for b in content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                ]
+                return "".join(parts) or None
+            return content or None
+    return None
+
+
+def run_cli(agent: Assistant, debug: bool = False) -> None:
     """Simple REPL loop for terminal use."""
     print(f"NixMgr — repo: {NIXOS_REPO_PATH}")
+    print(f"Logs → {LOG_FILE}")
     print("Type 'exit' or Ctrl-C to quit.\n")
+
     messages: list[dict] = []
 
     while True:
@@ -81,24 +153,41 @@ def run_cli(agent: Assistant) -> None:
             continue
 
         messages.append({"role": "user", "content": user_input})
+        log.info("User: %s", user_input)
 
-        response_msgs = []
-        for chunk in agent.run(messages=messages):
-            response_msgs = chunk  # agent.run yields incremental message lists
+        response_msgs: list[dict] = []
+        chunk_count = 0
+        SPINNER = r"⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-        # Print the last assistant message
-        for msg in reversed(response_msgs):
-            if msg.get("role") == "assistant":
-                content = msg.get("content", "")
-                if isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            print(f"\nNixMgr> {block['text']}\n")
-                else:
-                    print(f"\nNixMgr> {content}\n")
-                break
+        try:
+            for chunk in agent.run(messages=messages):
+                response_msgs = chunk
+                if debug:
+                    # Spinner shows the agent is alive without printing
+                    # the raw (non-delta) accumulated text each chunk
+                    spin_char = SPINNER[chunk_count % len(SPINNER)]
+                    print(f"\r  {spin_char} thinking…", end="", flush=True)
+                    chunk_count += 1
 
-        messages = response_msgs  # keep full history for next turn
+        except Exception as exc:
+            log.exception("Agent error")
+            if debug:
+                print()
+            print(f"\n[error] {exc} — see {LOG_FILE} for details\n")
+            continue
+
+        if debug:
+            print("\r" + " " * 20 + "\r", end="")  # clear spinner line
+
+        # Always print the final response once, cleanly
+        final = _extract_last_text(response_msgs)
+        if final:
+            print(f"\nNixMgr> {final}\n")
+        else:
+            print("\n[no response]\n")
+
+        log.info("Assistant: %s", _extract_last_text(response_msgs))
+        messages = response_msgs
 
 
 def run_gui(agent: Assistant) -> None:
@@ -106,10 +195,13 @@ def run_gui(agent: Assistant) -> None:
     WebUI(agent).run()
 
 
-if __name__ == "__main__":
+def main() -> None:
     agent = build_agent()
-
     if "--gui" in sys.argv:
         run_gui(agent)
     else:
-        run_cli(agent)
+        run_cli(agent, debug="--debug" in sys.argv)
+
+
+if __name__ == "__main__":
+    main()
