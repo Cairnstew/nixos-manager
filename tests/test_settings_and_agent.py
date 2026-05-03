@@ -28,6 +28,20 @@ import pytest
 
 class TestSettings:
 
+    @pytest.fixture(autouse=True)
+    def _restore_settings(self):
+        """Restore config.settings in sys.modules after each test so that
+        env-var reimport tricks don't leak into subsequent tests."""
+        original = sys.modules.get("config.settings")
+        yield
+        if original is None:
+            sys.modules.pop("config.settings", None)
+        else:
+            sys.modules["config.settings"] = original
+        # Clean up any env vars that individual tests may have left behind
+        for var in ("NIXMGR_MODEL", "NIXMGR_SERVER", "NIXOS_REPO_PATH"):
+            os.environ.pop(var, None)
+
     def test_nix_extensions_contains_dot_nix(self):
         import config.settings as s
         assert ".nix" in s.NIX_EXTENSIONS
@@ -101,10 +115,34 @@ class TestAgentWiring:
     without ever connecting to a real LLM.
     """
 
+    # Keys we touch during re-imports; snapshot/restore keeps the live-LLM
+    # tests from seeing a dirty sys.modules after this class runs.
+    _OWNED_MODULES = frozenset([
+        "agent",
+        "config.settings",
+        "tools.repo_reader",
+        "tools.repo_writer",
+        "tools.nix_ops",
+        "tools.nix_eval",
+        "tools.nix_search",
+    ])
+
+    @pytest.fixture(autouse=True)
+    def _restore_modules(self):
+        """Snapshot the relevant sys.modules entries before each test and
+        restore them afterwards, so deletions/re-imports never leak out to
+        other test classes (especially the live-LLM tests)."""
+        snapshot = {k: sys.modules.get(k) for k in self._OWNED_MODULES}
+        yield
+        for key, val in snapshot.items():
+            if val is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = val
+
     def _get_agent_module(self):
-        """Import agent.py with qwen_agent fully mocked out."""
-        if "agent" in sys.modules:
-            del sys.modules["agent"]
+        """Re-import agent.py from scratch inside this test's scope."""
+        sys.modules.pop("agent", None)
         return importlib.import_module("agent")
 
     def test_tools_list_contains_all_expected_tools(self):
@@ -130,13 +168,12 @@ class TestAgentWiring:
         assert "dry_run" in agent_mod.SYSTEM_PROMPT
 
     def test_build_agent_calls_assistant_with_llm_config(self):
-        agent_mod = self._get_agent_module()
         import config.settings as s
 
         mock_assistant_cls = MagicMock()
         with patch.object(sys.modules["qwen_agent.agents"], "Assistant", mock_assistant_cls):
-            # Re-import to pick up patched Assistant
-            del sys.modules["agent"]
+            # Re-import inside the patch so build_agent() sees the mock
+            sys.modules.pop("agent", None)
             agent_mod = importlib.import_module("agent")
             agent_mod.build_agent()
 

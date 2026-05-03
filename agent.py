@@ -18,10 +18,26 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 LOG_FILE = Path(__file__).parent / "nixmgr.log"
 
+class _QwenFilter(logging.Filter):
+    """Block qwen_agent INFO chatter on the terminal handler only.
+
+    Using a Filter here (rather than setting setLevel on the qwen_agent
+    loggers themselves) keeps qwen_agent's internal streaming machinery
+    intact.  Setting WARNING on those loggers suppresses the records
+    before they reach any handler — including the internal callbacks that
+    drive chunk generation — which causes agent.run() to yield empty
+    chunks under pytest's log-capture plugin.
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.name.startswith("qwen_agent")
+
+
 def setup_logging(verbose_terminal: bool = False) -> None:
     """
     Always write full DEBUG logs to nixmgr.log.
     Only show WARNING+ on the terminal unless --log is passed.
+
+    Idempotent: safe to call multiple times (e.g. during pytest collection).
     """
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
@@ -30,24 +46,25 @@ def setup_logging(verbose_terminal: bool = False) -> None:
         "%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s"
     )
 
-    # File handler — everything goes here
-    fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(fmt)
-    root.addHandler(fh)
+    # Guard against duplicate handlers when the module is re-imported
+    # (e.g. pytest collects tests across multiple files).
+    existing_types = {type(h) for h in root.handlers}
 
-    # Terminal handler — quiet by default, verbose with --log
-    sh = logging.StreamHandler(sys.stderr)
-    sh.setLevel(logging.DEBUG if verbose_terminal else logging.WARNING)
-    sh.setFormatter(fmt)
-    root.addHandler(sh)
+    if logging.FileHandler not in existing_types:
+        fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
 
-    # Suppress noisy qwen-agent INFO lines on stderr without clearing
-    # handlers wholesale (clearing breaks qwen-agent's internal streaming)
-    if not verbose_terminal:
-        for name in ("qwen_agent", "qwen_agent.llm", "qwen_agent.llm.base"):
-            lg = logging.getLogger(name)
-            lg.setLevel(logging.WARNING)
+    if logging.StreamHandler not in existing_types:
+        sh = logging.StreamHandler(sys.stderr)
+        sh.setLevel(logging.DEBUG if verbose_terminal else logging.WARNING)
+        sh.setFormatter(fmt)
+        # Filter noisy qwen_agent lines from the terminal only — do NOT
+        # touch the qwen_agent logger levels, as that breaks streaming.
+        if not verbose_terminal:
+            sh.addFilter(_QwenFilter())
+        root.addHandler(sh)
 
 
 verbose_log = "--log" in sys.argv

@@ -19,6 +19,8 @@
       requiresPython = ">=3.12";
 
       dependencies = [
+        "qwen-agent[code-interpreter,gui,mcp,rag]>=0.0.3"
+        "soundfile>=0.13.1"
       ];
 
       optionalDependencies = {

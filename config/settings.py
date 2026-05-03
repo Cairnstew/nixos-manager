@@ -12,7 +12,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 LLM_CONFIG = {
     "model_type": "oai",
-    "model": os.getenv("NIXMGR_MODEL", "qwen3:8b"),
+    "model": os.getenv("NIXMGR_MODEL", "qwen2.5:7b-instruct"),
     "model_server": os.getenv("NIXMGR_SERVER", "http://localhost:11434/v1"),
     "api_key": os.getenv("NIXMGR_API_KEY", "ollama"),
     "generate_cfg": {

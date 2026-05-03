@@ -2,10 +2,23 @@ import pytest
 import os
 import json
 import time
+import sys
 import urllib.request
+from unittest.mock import MagicMock
 from agent import build_agent, _extract_last_text
 from qwen_agent.llm.base import ModelServiceError
 from config.settings import LLM_CONFIG
+
+
+def _qwen_is_available() -> bool:
+    """Check if qwen_agent is actually installed (not mocked by conftest)."""
+    # Try to build an agent and check if it's real (not a MagicMock)
+    try:
+        agent = build_agent()
+        # If the agent is a MagicMock, qwen_agent wasn't really imported
+        return not isinstance(agent, MagicMock)
+    except Exception:
+        return False
 
 
 def _model_is_ready(timeout: int = 60) -> bool:
@@ -41,8 +54,8 @@ def _model_is_ready(timeout: int = 60) -> bool:
 
 
 ollama_available = pytest.mark.skipif(
-    not _model_is_ready(timeout=60),
-    reason="Ollama model not ready within 60s — skipping live LLM tests"
+    not _model_is_ready(timeout=60) or not _qwen_is_available(),
+    reason="Ollama model not ready within 60s OR qwen_agent not installed — skipping live LLM tests"
 )
 
 
@@ -51,13 +64,31 @@ def _run_agent(agent, messages: list) -> tuple[str, list]:
     Returns (text, raw_msgs) so callers can include raw structure in failures."""
     response_msgs = []
     best_text = ""
+    all_chunks = []  # keep every chunk (including empty) for diagnostics
     for chunk in agent.run(messages=messages):
+        all_chunks.append(chunk)
         if not chunk:
             continue
         response_msgs = chunk
         candidate = _extract_last_text(chunk) or ""
         if len(candidate) > len(best_text):
             best_text = candidate
+
+    if not best_text:
+        # Emit a detailed diagnostic so we can tell WHY it failed:
+        # - all_chunks=[] means agent.run() is itself an empty generator
+        # - all_chunks=[[], []] means LLM is yielding only empty-list chunks
+        print(
+            f"\n[_run_agent diagnostic] total_chunks={len(all_chunks)}, "
+            f"non_empty={sum(1 for c in all_chunks if c)}, "
+            f"agent_type={type(agent).__name__}, "
+            f"function_map_keys={list(agent.function_map.keys())}, "
+            f"llm_type={type(getattr(agent, 'llm', None)).__name__}, "
+            f"llm_model={getattr(getattr(agent, 'llm', None), 'model', 'N/A')}, "
+            f"llm_server={getattr(getattr(agent, 'llm', None), 'model_server', 'N/A')}",
+            flush=True,
+        )
+
     return best_text, response_msgs
 
 
