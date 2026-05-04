@@ -73,11 +73,14 @@ setup_logging(verbose_terminal=verbose_log)
 # ---------------------------------------------------------------------------
 # Now safe to import qwen_agent (its loggers inherit root config above)
 # ---------------------------------------------------------------------------
-import tools.repo_reader   # noqa: F401  — register_tool decorators
-import tools.repo_writer   # noqa: F401
-import tools.nix_ops       # noqa: F401
-import tools.nix_eval      # noqa: F401
-import tools.nix_search    # noqa: F401
+import tools.repo_reader              # noqa: F401  — register_tool decorators
+import tools.repo_writer              # noqa: F401
+import tools.nix_ops                  # noqa: F401
+import tools.nix_eval                 # noqa: F401
+import tools.nix_search               # noqa: F401
+import tools.nix_docs                 # noqa: F401
+import tools.nix_repl                 # noqa: F401
+import tools.nixos_unified_search     # noqa: F401
 
 from qwen_agent.agents import Assistant
 from qwen_agent.gui import WebUI
