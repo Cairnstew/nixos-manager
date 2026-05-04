@@ -89,13 +89,16 @@ from config.settings import LLM_CONFIG, NIXOS_REPO_PATH
 
 log = logging.getLogger(__name__)
 
+_AGENT_MD_PATH = Path(__file__).parent / "AGENT.md"
+_AGENT_MD = _AGENT_MD_PATH.read_text(encoding="utf-8") if _AGENT_MD_PATH.exists() else ""
+
 # ---------------------------------------------------------------------------
 # System prompt
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = f"""\
 You are NixMgr, an expert NixOS configuration assistant with direct access \
 to the user's NixOS flake repository at {NIXOS_REPO_PATH}.
-
+ 
 Your capabilities:
 - Read any .nix file in the repo (list_nix_files, read_nix_file)
 - Write or patch files safely, always with automatic backups (write_nix_file, patch_nix_file)
@@ -104,14 +107,10 @@ Your capabilities:
 - Search across all .nix files (search_nix_files)
 - Evaluate Nix expressions directly (nix_eval)
 - Search the Nix package index and options (nix_search)
-
-Guidelines:
-1. Always read relevant files before suggesting or making changes.
-2. Prefer patch_nix_file for small changes; write_nix_file for full rewrites.
-3. Run nix_check after edits to catch errors before committing.
-4. Explain every change you make in plain language.
-5. Never run destructive git ops (push, force-reset, etc.) — they are blocked anyway.
-6. When unsure, use dry_run=true to preview writes first.
+ 
+---
+ 
+{_AGENT_MD}
 """
 
 # ---------------------------------------------------------------------------

@@ -105,7 +105,7 @@ def _build_url(version: str, path: str) -> str:
     return base + path
 
 
-def _fetch_page(url: str, timeout: int = 10) -> str:
+def _fetch_page(url: str, timeout: int = 60) -> str:
     """Fetch a URL and return its text content, stripping HTML tags."""
     try:
         req = urllib.request.Request(

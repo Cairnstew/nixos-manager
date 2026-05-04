@@ -1,0 +1,80 @@
+# meta.nix — Machine-readable module contract
+# Required by the Deterministic System Graph convention (see AGENT.md §2.4).
+# ALL fields are mandatory unless marked [optional].
+# The nix_module_validator tool checks this file against the schema below.
+{
+  # -------------------------------------------------------------------------
+  # Identity
+  # -------------------------------------------------------------------------
+
+  # Canonical name — must match the directory name under modules/<category>/
+  name = "example-module";
+
+  # Category — must match the parent directory name under modules/
+  # e.g. "services", "programs", "system", "hardware", "home"
+  category = "services";
+
+  # Human-readable one-liner shown in listings and LLM context headers
+  description = "What this module does, in one sentence.";
+
+  # Semantic version of the module itself (not the wrapped software)
+  # Increment when options or behaviour change in a breaking way
+  version = "1.0.0";
+
+  # -------------------------------------------------------------------------
+  # Classification
+  # -------------------------------------------------------------------------
+
+  # Free-form tags for discovery and autowiring hints
+  # At least one tag is required
+  tags = [ "example" "template" ];
+
+  # The primary NixOS / nix-darwin / home-manager option namespace root
+  # Must be under my.<category>.<name> per AGENT.md §2.2
+  # e.g. "my.services.example-module"
+  namespace = "my.services.example-module";
+
+  # -------------------------------------------------------------------------
+  # Dependency declaration  [optional but strongly recommended]
+  # -------------------------------------------------------------------------
+
+  # Other my.* modules this module depends on being enabled
+  # Leave as [] if none
+  requires = [];
+
+  # NixOS/nixpkgs options this module reads from outside my.*
+  # e.g. [ "networking.hostName" "users.users" ]
+  # Leave as [] if none
+  reads = [];
+
+  # -------------------------------------------------------------------------
+  # Sidecar inventory
+  # -------------------------------------------------------------------------
+
+  # List every .nix file in this module directory besides default.nix and meta.nix.
+  # The validator cross-checks this list against actual imports in default.nix.
+  # "tests.nix" is always required and must appear here.
+  sidecars = [
+    "tests.nix"
+    # "networking.nix"
+    # "service.nix"
+  ];
+
+  # -------------------------------------------------------------------------
+  # Test surface
+  # -------------------------------------------------------------------------
+
+  # Short description of what tests.nix covers
+  # e.g. "systemd smoke test: unit starts, port 8080 is listening"
+  testDescription = "TODO: describe what tests.nix validates";
+
+  # -------------------------------------------------------------------------
+  # Lifecycle
+  # -------------------------------------------------------------------------
+
+  # "stable" | "experimental" | "deprecated"
+  status = "experimental";
+
+  # [optional] Free-form notes for agents or humans
+  # notes = "Depends on secrets being provisioned via sops-nix";
+}

@@ -42,7 +42,7 @@ class NixSearch(BaseTool):
             # Using 'nix search' by default for compatibility
             # nixpkgs is the standard flake reference
             cmd = ["nix", "search", "nixpkgs", query, "--json"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             
             if result.returncode != 0:
                 return f"Error running nix search: {result.stderr}"
