@@ -1,5 +1,6 @@
 
 nixmgr.log
+result-lib/
 # Python
 __pycache__/
 *.py[cod]

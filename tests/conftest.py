@@ -1,124 +1,87 @@
-import json
+"""
+Pytest configuration and shared fixtures for nixos-manager tests.
+"""
+
+import os
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Make sure the project root is importable
-# ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Add src directory to path so imports work
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-# ---------------------------------------------------------------------------
-# Smart Stubbing: Only stub qwen_agent if it's NOT installed.
-# This allows live tests to use the real library while unit tests stay light.
-# Catches both ImportError and OSError (for missing system libraries like libsndfile.so)
-# ---------------------------------------------------------------------------
-try:
-    import qwen_agent
-    HAS_QWEN = True
-except (ImportError, OSError, FileNotFoundError):
-    HAS_QWEN = False
+
+@pytest.fixture
+def temp_home(tmp_path):
+    """Provide a temporary home directory for testing."""
+    old_home = os.environ.get("HOME")
+    test_home = tmp_path / "home"
+    test_home.mkdir()
+    os.environ["HOME"] = str(test_home)
+    yield test_home
+    if old_home:
+        os.environ["HOME"] = old_home
+
+
+@pytest.fixture
+def mock_subprocess(monkeypatch):
+    """Mock subprocess for testing server start/stop without actually running it."""
+    mock_popen = MagicMock()
+    mock_popen.pid = 12345
+    mock_popen.poll.return_value = None  # Process still running
     
-    class _FakeBaseTool:
-        """Minimal BaseTool stand-in so tools can be instantiated in tests."""
-        name: str = ""
-        description: str = ""
-        parameters: list = []
-        def call(self, params, **kwargs) -> str:
-            raise NotImplementedError
-
-    def _fake_register_tool(name: str):
-        def decorator(cls):
-            return cls
-        return decorator
-
-    class ModelServiceError(Exception):
-        """Fake ModelServiceError exception for qwen_agent."""
-        pass
-
-    # Patch the modules so the project can at least import them
-    qwen_mock = MagicMock()
-    qwen_mock.tools.base.BaseTool = _FakeBaseTool
-    qwen_mock.tools.base.register_tool = _fake_register_tool
+    def mock_popen_factory(*args, **kwargs):
+        return mock_popen
     
-    llm_base_mock = MagicMock()
-    llm_base_mock.ModelServiceError = ModelServiceError
+    monkeypatch.setattr("subprocess.Popen", mock_popen_factory)
+    return mock_popen
+
+
+@pytest.fixture
+def mock_socket(monkeypatch):
+    """Mock socket for testing server connectivity checks."""
+    mock_conn = MagicMock()
     
-    sys.modules.setdefault("qwen_agent", qwen_mock)
-    sys.modules.setdefault("qwen_agent.tools", qwen_mock.tools)
-    sys.modules.setdefault("qwen_agent.tools.base", qwen_mock.tools.base)
-    sys.modules.setdefault("qwen_agent.agents", MagicMock())
-    sys.modules.setdefault("qwen_agent.llm", MagicMock())
-    sys.modules.setdefault("qwen_agent.llm.base", llm_base_mock)
-    sys.modules.setdefault("qwen_agent.gui", MagicMock())
+    def mock_create_connection(address, timeout):
+        # By default, simulate successful connection
+        return mock_conn
+    
+    monkeypatch.setattr("socket.create_connection", mock_create_connection)
+    return mock_conn
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def mock_server_unavailable(monkeypatch):
+    """Mock socket to simulate server unavailable."""
+    def mock_create_connection(address, timeout):
+        raise OSError("Connection refused")
+    
+    monkeypatch.setattr("socket.create_connection", mock_create_connection)
 
-@pytest.fixture()
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+
+@pytest.fixture
+def sample_html_response():
+    """Sample HTML response from searchix-web."""
+    return """
+    <table><thead></thead><tbody>
+      <tr>
+        <td><a class="open-dialog" href="ghostty?query=ghostty&scoped">ghostty</a></td>
+        <td class="description"><p>Fast terminal emulator</p><dialog>{"score": 0.95}</dialog></td>
+        <td class="score">0.95</td>
+      </tr>
+      <tr>
+        <td><a class="open-dialog" href="programs.ghostty.enable?query=enable&scoped">programs.ghostty.enable</a></td>
+        <td class="description"><p>Enable ghostty</p><dialog>{"score": 0.87}</dialog></td>
+        <td class="score">0.87</td>
+      </tr>
+    </tbody></table>
     """
-    A temporary directory acting as a fake NixOS repo.
-    Patches NIXOS_REPO_PATH in settings and any modules that already imported it.
-    """
-    # Patch the central settings
-    monkeypatch.setattr("config.settings.NIXOS_REPO_PATH", tmp_path)
-
-    # Force update any tool modules that might have cached the old path
-    tool_mods = [
-        "tools.repo_reader",
-        "tools.repo_writer",
-        "tools.nix_ops",
-    ]
-    for mod_name in tool_mods:
-        if mod_name in sys.modules:
-            mod = sys.modules[mod_name]
-            if hasattr(mod, "NIXOS_REPO_PATH"):
-                monkeypatch.setattr(mod, "NIXOS_REPO_PATH", tmp_path)
-
-    return tmp_path
 
 
-@pytest.fixture()
-def nix_file(repo: Path) -> Path:
-    """Create a sample configuration.nix."""
-    f = repo / "configuration.nix"
-    f.write_text('{ config, pkgs, ... }:\n{\n  networking.hostName = "myhost";\n}\n')
-    return f
-
-
-@pytest.fixture()
-def nested_nix_files(repo: Path) -> list[Path]:
-    """Create a directory structure for testing recursion."""
-    files = [
-        repo / "flake.nix",
-        repo / "hosts" / "desktop.nix",
-        repo / "modules" / "programs" / "neovim.nix",
-    ]
-    for f in files:
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text("# placeholder\n")
-    return files
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def call_tool(tool_cls, params: dict) -> str:
-    """Instantiate a tool and call it, returning the string result."""
-    instance = tool_cls()
-    return instance.call(params)
-
-
-def call_tool_json(tool_cls, params: dict) -> str:
-    """Same as call_tool but passes params as a JSON string."""
-    instance = tool_cls()
-    return instance.call(json.dumps(params))
-
-
-    
+@pytest.fixture
+def sample_empty_response():
+    """Sample empty HTML response from searchix-web."""
+    return "<table><thead></thead><tbody></tbody></table>"
