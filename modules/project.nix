@@ -43,7 +43,7 @@
     ];
 
     shellEnv = {
-      NIXMGR_MODEL   = "qwen2.5:7b-instruct";
+      NIXMGR_MODEL   = "gemma4:e4b";
       NIXMGR_SERVER  = "http://localhost:11434/v1";
       NIXMGR_API_KEY = "ollama";
     };
