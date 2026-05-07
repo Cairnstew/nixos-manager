@@ -1,55 +1,44 @@
-import json
-import asyncio
-import sys
-import nest_asyncio
-
 from qwen_agent.tools.base import BaseTool, register_tool
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from ._base import run_mcp, parse_params, out
 
-nest_asyncio.apply()
+_PARAM_KEYS = ["action", "query", "source", "type", "channel", "limit", "version", "system"]
 
 
-@register_tool('nix_search_tool')
+@register_tool("nix_search_tool")
 class NixSearchTool(BaseTool):
-    description = 'Search for NixOS options, packages, and documentation.'
-    parameters = [{
-        'name': 'query',
-        'type': 'string',
-        'description': 'The package name or NixOS option to look up (e.g., "services.nginx" or "python3").',
-        'required': True
-    }]
+    description = (
+        "Query real NixOS data: packages, options, wiki, home-manager, flakes, etc. "
+        "Actions: search | info | stats | options | cache | channels | flake-inputs. "
+        "Sources: nixos | home-manager | darwin | flakes | flakehub | nixvim | noogle | wiki | nix-dev | nixhub."
+    )
+    parameters = [
+        {"name": "action", "type": "string", "required": True,
+         "description": "search | info | stats | options | cache | channels | flake-inputs"},
+        {"name": "query", "type": "string", "required": False,
+         "description": "Package name, option path, or search term"},
+        {"name": "source", "type": "string", "required": False, "default": "nixos",
+         "description": "nixos | home-manager | darwin | flakes | flakehub | nixvim | noogle | wiki | nix-dev | nixhub"},
+        {"name": "type", "type": "string", "required": False,
+         "description": "For nixos: 'packages' or 'options'. For flake-inputs: 'list', 'ls', or 'read'"},
+        {"name": "channel", "type": "string", "required": False,
+         "description": "'stable' or 'unstable'"},
+        {"name": "limit", "type": "integer", "required": False,
+         "description": "Max results"},
+        {"name": "version", "type": "string", "required": False,
+         "description": "Specific version (for cache action)"},
+        {"name": "system", "type": "string", "required": False,
+         "description": "e.g. 'x86_64-linux' (for cache action)"},
+    ]
 
-    _session = None
-
-    async def _get_session(self):
-        if NixSearchTool._session is None:
-            server_params = StdioServerParameters(
-                command=sys.executable,
-                args=["-m", "mcp_nixos.server"],  # ← key fix
-            )
-
-            read, write = await stdio_client(server_params).__aenter__()
-            session = await ClientSession(read, write).__aenter__()
-            await session.initialize()
-
-            NixSearchTool._session = session
-
-        return NixSearchTool._session
-
-    async def _call_mcp(self, query: str):
-        session = await self._get_session()
-        result = await session.call_tool("nix", {   # ← also fix this
-            "action": "search",
-            "query": query
+    def call(self, params: str | dict, **_) -> str:
+        p = parse_params(params)
+        payload = {k: p[k] for k in _PARAM_KEYS if k in p}
+        result = run_mcp("nix", payload)
+        return out({
+            "result": result,
+            "next_step": (
+                "If this confirmed a package or option name, write it to scratchpad (key='facts'). "
+                "Then continue to the next step in your plan. "
+                "If unsure, call nix_search_tool again with action='info' to verify."
+            ),
         })
-
-        return "\n".join(
-            block.text for block in result.content
-            if hasattr(block, "text")
-        )
-
-    def call(self, params: str, **kwargs) -> str:
-        params = json.loads(params)
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self._call_mcp(params['query']))

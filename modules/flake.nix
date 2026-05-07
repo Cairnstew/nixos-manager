@@ -20,12 +20,15 @@
     in
     {
       devShells.default = pkgs.mkShell {
-        packages = [ devEnv pkgs.uv searchix ] ++ extraDev;
+        packages = [ devEnv pkgs.uv searchix pkgs.libsndfile] ++ extraDev;
         env = cfg.shellEnv // {
           UV_NO_SYNC          = "1";
           UV_PYTHON           = "${pyEnv.python.interpreter}";
           UV_PYTHON_DOWNLOADS = "never";
-          LD_LIBRARY_PATH     = "${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH";
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.stdenv.cc.cc.lib
+            pkgs.libsndfile
+          ];
         };
         shellHook = ''
           export REPO_ROOT=$(git rev-parse --show-toplevel)
