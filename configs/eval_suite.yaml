@@ -1,0 +1,30 @@
+suite: ollama-agent-basic
+agent: examples.my_agent.agent
+trials: 10
+threshold: 0.80
+
+cases:
+  - name: basic-math
+    input:
+      query: "What is 15 * 37?"
+    expected:
+      output_contains: ["555"]
+
+  - name: power-of-two
+    input:
+      query: "What is 2 to the power of 10?"
+    expected:
+      output_contains: ["1024"]
+
+  - name: current-time
+    input:
+      query: "What is the current UTC time? Just give me the ISO timestamp."
+    expected:
+      regex: "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}"
+
+  - name: sqrt
+    input:
+      query: "What is the square root of 1764?"
+    expected:
+      output_contains: ["42"]
+    max_latency_ms: 30000
