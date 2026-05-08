@@ -30,7 +30,7 @@ class OllamaConfig:
         timeout: HTTP timeout (seconds) for calls to the Ollama server.
     """
 
-    model: str = "qwen2.5:7b"
+    model: str = "qwen2.5:7b-instruct"
     base_url: str = "http://localhost:11434"
     agent_type: AgentType = AgentType.CODE
     temperature: float = 0.0
@@ -44,7 +44,7 @@ class OllamaConfig:
     @classmethod
     def qwen_7b(cls, **kwargs: object) -> "OllamaConfig":
         """Preset for Qwen 2.5 7B."""
-        return cls(model="qwen2.5:7b", **kwargs)  # type: ignore[arg-type]
+        return cls(model="qwen2.5:7b-instruct", **kwargs)  # type: ignore[arg-type]
 
     @classmethod
     def gemma_4b(cls, **kwargs: object) -> "OllamaConfig":

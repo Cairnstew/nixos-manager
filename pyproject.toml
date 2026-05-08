@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "smolagents[toolkit]>=1.0.0",
+    "smolagents[mcp,toolkit]>=1.0.0",
     "agentrial>=0.2.0",
     "ollama>=0.3.0",
     "httpx>=0.27.0",
@@ -35,6 +35,10 @@ dependencies = [
     "typer>=0.12.0",
     "pyyaml>=6.0",
     "pandas>=3.0.2",
+    "openai>=2.36.0",
+    "fastapi>=0.136.1",
+    "uvicorn[standard]>=0.46.0",
+    "mcp-nixos>=2.4.3",
 ]
 
 [project.optional-dependencies]

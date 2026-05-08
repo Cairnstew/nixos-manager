@@ -49,10 +49,9 @@
     };
 
     shellHints = [
-      "python agent.py          # terminal REPL"
-      "python agent.py --gui    # Gradio web UI"
-      "pytest -v                # run tests"
-      "uv add <pkg>             # add a dependency"
+      "ollama-agent --help  # see available CLI commands"
+      "pytest               # run tests"
+      "uv add <pkg>         # add a dependency"
     ];
   };
 }

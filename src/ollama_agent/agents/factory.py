@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from smolagents import CodeAgent, Tool, ToolCallingAgent
+from smolagents.models import OpenAIModel
 
 from ollama_agent.config import AgentType, OllamaConfig
 from ollama_agent.models import OllamaModel
@@ -20,20 +21,11 @@ def create_agent(
     *,
     extra_tools: list[Tool] | None = None,
 ) -> CodeAgent | ToolCallingAgent:
-    """Build and return a smolagents agent connected to a local Ollama model.
-
-    Args:
-        config: An OllamaConfig instance. Defaults to OllamaConfig() (Qwen 2.5 7B, CodeAgent).
-        tools: Complete list of tools. When None, the default toolset is used.
-        extra_tools: Additional tools appended to the default toolset.
-
-    Returns:
-        A ready-to-use smolagents agent instance.
-    """
+    """Build and return a smolagents agent connected to a local Ollama model."""
     if config is None:
         config = OllamaConfig()
 
-    model = OllamaModel(
+    model: OpenAIModel = OllamaModel(
         model_id=config.model,
         base_url=config.base_url,
         temperature=config.temperature,
