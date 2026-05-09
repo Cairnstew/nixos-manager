@@ -24,47 +24,19 @@ console = Console()
 def run(
     prompt: Annotated[str, typer.Argument(help="Task for the agent to solve.")],
     model: Annotated[str, typer.Option("--model", "-m")] = "qwen2.5-coder:7b",
+    repo: Annotated[str, typer.Option("--repo", "-r")] = ".",
     base_url: Annotated[str, typer.Option("--url")] = "http://localhost:11434",
-    agent_type: Annotated[AgentType, typer.Option("--type", "-t")] = AgentType.CODE,
-    max_steps: Annotated[int, typer.Option("--steps")] = 10,
-    temperature: Annotated[float, typer.Option("--temp")] = 0.0,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
-    tools: Annotated[str, typer.Option("--tools", help="Tool preset: minimal, coding, nixos, research, full")] = "minimal",
 ) -> None:
-    """Run the agent on a single prompt and print the result."""
-    from ollama_agent.agents.factory import create_agent
-    from ollama_agent.tools import get_preset_tools, TOOL_PRESETS
-
-    cfg = OllamaConfig(
-        model=model,
+    from ollama_agent.router import dispatch
+    result = dispatch(
+        user_message=prompt,
+        repo_path=repo,
+        model_id=model,
         base_url=base_url,
-        agent_type=agent_type,
-        temperature=temperature,
-        max_steps=max_steps,
         verbose=verbose,
     )
-
-    try:
-        tool_list = get_preset_tools(tools)
-    except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(code=1) from exc
-
-    tool_names = [t.name for t in tool_list]
-    console.print(Panel(
-        f"[bold cyan]Model:[/] {model}  "
-        f"[bold cyan]Type:[/] {agent_type.value}  "
-        f"[bold cyan]Tools:[/] {', '.join(tool_names)}"
-    ))
-
-    try:
-        agent = create_agent(cfg, tools=tool_list)
-        result = agent.run(prompt)
-        console.print(Panel(str(result), title="[green]Result[/green]", border_style="green"))
-    except Exception as exc:
-        console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(code=1) from exc
-
+    console.print(Panel(str(result), title="[green]Result[/green]", border_style="green"))
 
 @app.command("list-models")
 def list_models_cmd(

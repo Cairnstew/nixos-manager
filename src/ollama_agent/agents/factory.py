@@ -15,12 +15,7 @@ from ollama_agent.tools import get_default_tools
 logger = logging.getLogger(__name__)
 
 
-def create_agent(
-    config: OllamaConfig | None = None,
-    tools: list[Tool] | None = None,
-    *,
-    extra_tools: list[Tool] | None = None,
-) -> CodeAgent | ToolCallingAgent:
+def create_agent(config=None, tools=None, *, extra_tools=None):
     """Build and return a smolagents agent connected to a local Ollama model."""
     if config is None:
         config = OllamaConfig()

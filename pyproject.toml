@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "smolagents[mcp,toolkit]>=1.0.0",
+    "smolagents[mcp,openai,toolkit]>=1.0.0",
     "agentrial>=0.2.0",
     "ollama>=0.3.0",
     "httpx>=0.27.0",

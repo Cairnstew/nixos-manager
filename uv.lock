@@ -1659,7 +1659,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
-    { name = "smolagents", extra = ["mcp", "toolkit"] },
+    { name = "smolagents", extra = ["mcp", "openai", "toolkit"] },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1700,7 +1700,7 @@ requires-dist = [
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
-    { name = "smolagents", extras = ["mcp", "toolkit"], specifier = ">=1.0.0" },
+    { name = "smolagents", extras = ["mcp", "openai", "toolkit"], specifier = ">=1.0.0" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.46.0" },
 ]
@@ -2692,6 +2692,9 @@ mcp = [
     { name = "mcp" },
     { name = "mcpadapt", version = "0.1.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "mcpadapt", version = "0.1.20", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+openai = [
+    { name = "openai" },
 ]
 toolkit = [
     { name = "ddgs" },
